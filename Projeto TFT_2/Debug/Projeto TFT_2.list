@@ -21,23 +21,23 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
   8 .ARM.attributes 00000029  00000000  00000000  00020020  2**0
                   CONTENTS, READONLY
-  9 .debug_info   0000ac9b  00000000  00000000  00020049  2**0
+  9 .debug_info   0000acac  00000000  00000000  00020049  2**0
                   CONTENTS, READONLY, DEBUGGING
- 10 .debug_abbrev 000016ab  00000000  00000000  0002ace4  2**0
+ 10 .debug_abbrev 000016ab  00000000  00000000  0002acf5  2**0
                   CONTENTS, READONLY, DEBUGGING
- 11 .debug_loc    00002f77  00000000  00000000  0002c38f  2**0
+ 11 .debug_loc    00002f77  00000000  00000000  0002c3a0  2**0
                   CONTENTS, READONLY, DEBUGGING
- 12 .debug_aranges 00000490  00000000  00000000  0002f308  2**3
+ 12 .debug_aranges 00000490  00000000  00000000  0002f318  2**3
                   CONTENTS, READONLY, DEBUGGING
- 13 .debug_ranges 00001090  00000000  00000000  0002f798  2**3
+ 13 .debug_ranges 00001090  00000000  00000000  0002f7a8  2**3
                   CONTENTS, READONLY, DEBUGGING
- 14 .debug_line   000027fc  00000000  00000000  00030828  2**0
+ 14 .debug_line   000027fc  00000000  00000000  00030838  2**0
                   CONTENTS, READONLY, DEBUGGING
- 15 .debug_str    00001a44  00000000  00000000  00033024  2**0
+ 15 .debug_str    00001a55  00000000  00000000  00033034  2**0
                   CONTENTS, READONLY, DEBUGGING
- 16 .comment      0000007c  00000000  00000000  00034a68  2**0
+ 16 .comment      0000007c  00000000  00000000  00034a89  2**0
                   CONTENTS, READONLY
- 17 .debug_frame  00000b3c  00000000  00000000  00034ae4  2**2
+ 17 .debug_frame  00000b3c  00000000  00000000  00034b08  2**2
                   CONTENTS, READONLY, DEBUGGING
 
 Disassembly of section .text:
@@ -1643,12 +1643,12 @@ void wr_strobe() {
 		//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
 	}*/
 
-	GPIOB->BSRR = 0x00FF << 16;
- 8000a88:	f44f 037f 	mov.w	r3, #16711680	; 0xff0000
+	GPIOB->BSRR = 0x0FF0<< 16;
+ 8000a88:	f04f 637f 	mov.w	r3, #267386880	; 0xff00000
  8000a8c:	4a07      	ldr	r2, [pc, #28]	; (8000aac <write_8+0x24>)
 	aux1 = ((x) & 0x03)<<8;
  8000a8e:	4908      	ldr	r1, [pc, #32]	; (8000ab0 <write_8+0x28>)
-	GPIOB->BSRR = 0x00FF << 16;
+	GPIOB->BSRR = 0x0FF0<< 16;
  8000a90:	6113      	str	r3, [r2, #16]
 	aux1 = ((x) & 0x03)<<8;
  8000a92:	0203      	lsls	r3, r0, #8

@@ -882,7 +882,7 @@ void write_8(uint8_t x) {
 		//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
 	}*/
 
-	GPIOB->BSRR = 0x00FF << 16;
+	GPIOB->BSRR = 0x0FF0<< 16;
 	aux1 = ((x) & 0x03)<<8;
 	aux2 = (x) & 0xFC;
 	GPIOB->BSRR = ((aux2 | aux1)<<2) & 0x0FF0;
