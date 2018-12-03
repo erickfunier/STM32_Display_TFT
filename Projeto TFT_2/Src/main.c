@@ -50,6 +50,8 @@
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -137,6 +139,8 @@ int eixo_y_minus = 20;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
+static void MX_ADC1_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -190,13 +194,13 @@ void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 /* USER CODE BEGIN 0 */
 uint32_t val_adc1; // valor lido no conv ADC
 uint32_t val_adc2; // valor lido no conv ADC
-//void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)	{
-//	if(hadc->Instance == ADC1)	{
-//		val_adc1 = ADC_BUF[0];
-//		val_adc2 = ADC_BUF[1];
-//		flag_adc = 0;
-//	}
-//}
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)	{
+	if(hadc->Instance == ADC1)	{
+		val_adc1 = ADC_BUF[0];
+		val_adc2 = ADC_BUF[1];
+		flag_adc = 0;
+	}
+}
 
 /* USER CODE END 0 */
 
@@ -229,10 +233,12 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   begin(0x1289);
-//  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,2);
-//  HAL_ADC_Start_IT(&hadc1);
+  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,2);
+  HAL_ADC_Start_IT(&hadc1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -245,7 +251,7 @@ int main(void)
   /* USER CODE BEGIN 3 */
 	  //fillScreen(GREEN);
 	   testDrawScreen();
-	   //readTouch();
+	   readTouch();
 
   }
   /* USER CODE END 3 */
@@ -261,6 +267,7 @@ void SystemClock_Config(void)
 
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
+  RCC_PeriphCLKInitTypeDef PeriphClkInit;
 
     /**Initializes the CPU, AHB and APB busses clocks 
     */
@@ -290,6 +297,13 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
     /**Configure the Systick interrupt time 
     */
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
@@ -302,12 +316,70 @@ void SystemClock_Config(void)
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 }
 
+/* ADC1 init function */
+static void MX_ADC1_Init(void)
+{
+
+  ADC_ChannelConfTypeDef sConfig;
+
+    /**Common config 
+    */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 2;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+    /**Configure Regular Channel 
+    */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+    /**Configure Regular Channel 
+    */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
+/** 
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void) 
+{
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
 /** Configure pins as 
         * Analog 
         * Input 
         * Output
         * EVENT_OUT
         * EXTI
+     PA1   ------> SharedAnalog_PA1
+     PA2   ------> SharedAnalog_PA2
 */
 static void MX_GPIO_Init(void)
 {
@@ -324,8 +396,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13|GPIO_PIN_14, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3 
-                          |GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0|GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_4|GPIO_PIN_5 
@@ -347,20 +418,13 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PA1 PA2 */
   GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB10 PB11 PB5 PB6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_5|GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PB4 PB7 PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
+  /*Configure GPIO pins : PB10 PB11 PB4 PB5 
+                           PB6 PB7 PB8 PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_4|GPIO_PIN_5 
+                          |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
@@ -426,69 +490,6 @@ void begin(uint16_t ID) {
     setRotation(3);
     fillScreen(GREEN);
 }
-
-//void readTouch(){
-//	char resultx[50];
-//	char resulty[50];
-//	int samples = 20;
-//	int temp = 0;
-//
-//	for (int i = 0; i < 20; i++) {
-//		readTouchX();
-//		if (flag_adc == 0) {
-//			temp += val_adc1;
-//		}
-//	}
-//	touchx_atual = temp/samples;
-//
-//	sprintf(resultx, "%i", touchx_atual);
-//
-//	fillRect(40, 148, 80, 18, GREEN);
-//
-//	setCursor(40, 148);
-//	setTextSize(2);
-//	print(resultx);
-//
-//	temp = 0;
-//	for (int i = 0; i < samples; i++) {
-//		readTouchY();
-//		if (flag_adc == 0) {
-//			temp += val_adc2;
-//		}
-//	}
-//	touchy_atual = temp/samples;
-//
-//	sprintf(resulty, "%i", touchy_atual);
-//
-//	fillRect(154, 148, 80, 18, GREEN);
-//
-//	setCursor(154, 148);
-//	setTextSize(2);
-//	print(resulty);
-//}
-
-//void readTouchX() {
-//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
-//	rs_cmd();
-//	rs_analog_input(); //_yp
-//
-//	wr_idle(); //_yp HIGH
-//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
-//
-//	flag_adc = 1;
-////	HAL_ADC_Start_IT(&hadc1);
-//	rs_output();
-//}
-
-//void readTouchY() {
-//	wr_analog_input(); //_yp
-//	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
-//	rs_cmd(); //_ym LOW
-//
-//	flag_adc = 1;
-////	HAL_ADC_Start_IT(&hadc1);
-//	wr_output();
-//}
 
 void invertDisplay(bool i) {
     _lcd_rev = ((_lcd_capable & REV_SCREEN) != 0) ^ i;
@@ -816,76 +817,76 @@ void write8(uint8_t x) {
 }
 
 void write_8(uint8_t x) {
-	/*//Escrever os 8 bits do pino PA0 ao PA7
-	//	PA 0
-	if ((x >> 0) == 0) {
-		HAL_GPIO_WritePin(LCD_D0_PORT, LCD_D0_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D0_PORT, LCD_D0_PIN, GPIO_PIN_SET);
-	}
-	//	PA 1
-	if ((x >> 1) == 0) {
-		HAL_GPIO_WritePin(LCD_D1_PORT, LCD_D1_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D1_PORT, LCD_D1_PIN, GPIO_PIN_SET);
-	}
-
-	//	PA 2
-	if ((x >> 2) == 0) {
-		HAL_GPIO_WritePin(LCD_D2_PORT, LCD_D2_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D2_PORT, LCD_D2_PIN, GPIO_PIN_SET);
-	}
-
-	//	PA 3
-	if ((x >> 3) == 0) {
-		HAL_GPIO_WritePin(LCD_D3_PORT, LCD_D3_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D3_PORT, LCD_D3_PIN, GPIO_PIN_SET);
-	}
-
-	//	PA 4
-	if ((x >> 4) == 0) {
-		HAL_GPIO_WritePin(LCD_D4_PORT, LCD_D4_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D4_PORT, LCD_D4_PIN, GPIO_PIN_SET);
-	}
-
-	//	PA 5
-	if ((x >> 5) == 0) {
-		HAL_GPIO_WritePin(LCD_D5_PORT, LCD_D5_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D5_PORT, LCD_D5_PIN, GPIO_PIN_SET);
-	}
-
-	//	PA 6
-	if ((x >> 6) == 0) {
-		HAL_GPIO_WritePin(LCD_D6_PORT, LCD_D6_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D6_PORT, LCD_D6_PIN, GPIO_PIN_SET);
-	}
-
-	//	PA 7
-	if ((x >> 7) == 0) {
-		HAL_GPIO_WritePin(LCD_D7_PORT, LCD_D7_PIN, GPIO_PIN_RESET);
-	} else {
-		HAL_GPIO_WritePin(LCD_D7_PORT, LCD_D7_PIN, GPIO_PIN_SET);
-	}*/
-	//GPIOB->BSRR = 0x7FFF << 16;
-
-	//GPIOB->BSRR = (x >> 3)  & 0x0000;
-	/*if ((x >> 7) == 1) {
-		GPIOB->BSRR = GPIO_PIN_4;
-		//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
-	} else {
-		GPIOB->BSRR = (uint32_t)GPIO_PIN_4 << 16U;
-		//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
-	}*/
-
 	GPIOB->BSRR = 0x0FF0<< 16;
 	aux1 = ((x) & 0x03)<<8;
 	aux2 = (x) & 0xFC;
 	GPIOB->BSRR = ((aux2 | aux1)<<2) & 0x0FF0;
+}
+
+void readTouch(){
+	char resultx[50];
+	char resulty[50];
+	int samples = 20;
+	int temp = 0;
+
+	for (int i = 0; i < 20; i++) {
+		readTouchX();
+		if (flag_adc == 0) {
+			temp += val_adc1;
+		}
+	}
+	touchx_atual = temp/samples;
+
+	sprintf(resultx, "%i", touchx_atual);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchY();
+		if (flag_adc == 0) {
+			temp += val_adc2;
+		}
+	}
+	touchy_atual = temp/samples;
+
+	sprintf(resulty, "%i", touchy_atual);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+}
+
+void readTouchX() {
+	wr_analog_input(); //_yp
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+	rs_cmd(); //_ym LOW
+
+	flag_adc = 1;
+	HAL_ADC_Start_IT(&hadc1);
+	wr_output();
+
+
+}
+
+void readTouchY() {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+	rs_cmd();
+	rs_analog_input(); //_yp
+
+	wr_idle(); //_yp HIGH
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+
+	flag_adc = 1;
+	HAL_ADC_Start_IT(&hadc1);
+	rs_output();
+
 }
 
 void writeCmd (uint16_t cmd) {
