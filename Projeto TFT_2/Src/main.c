@@ -250,8 +250,9 @@ int main(void)
 
   /* USER CODE BEGIN 3 */
 	  //fillScreen(GREEN);
-	   testDrawScreen();
-	   readTouch();
+	   calibrateTouch();
+	   //testDrawScreen();
+	   //readTouch();
 
   }
   /* USER CODE END 3 */
@@ -626,6 +627,251 @@ void testDrawScreen() {
 	}*/
 }
 
+void calibrateTouch(){
+	char resultx[50];
+	char resulty[50];
+	int samples = 500;
+	int temp = 0;
+	int f_touch = 0;
+
+	setTextColor(BLUE, GREEN);
+
+	int x1, x2, x3 = 0;
+	int y1, y2, y3 = 0;
+	int touchx1, touchx2, touchx3 = 0;
+	int touchy1, touchy2, touchy3 = 0;
+
+	int ident[3][3];
+
+	fillRect(20, 20, 11, 11, RED);
+
+	x1 = 20 + 11/2; // Ponto X1 + Largura do ponto
+	y1 = 20 + 11/2; // Ponto Y1 + Largura do ponto
+
+	while (f_touch == 0) {
+		for (int i = 0; i < samples; i++) {
+			readTouchX();
+			if (flag_adc == 0) {
+				temp += val_adc1;
+			}
+		}
+		temp = temp/samples;
+		if (temp > 10) f_touch = 1;
+	}
+
+	for (int i = 0; i < 20; i++) {
+		readTouchX();
+		if (flag_adc == 0) {
+			temp += val_adc1;
+		}
+	}
+	touchx1 = temp/samples;
+
+	sprintf(resultx, "%i", touchx1);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchY();
+		if (flag_adc == 0) {
+			temp += val_adc2;
+		}
+	}
+	touchy1 = temp/samples;
+
+	sprintf(resulty, "%i", touchy1);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+
+	fillRect(240, 120, 11, 11, RED);
+
+	x2 = 240 + 11/2; // Ponto X2 + Largura do ponto
+	y2 = 120 + 11/2; // Ponto Y2 + Largura do ponto
+
+	f_touch = 0;
+	temp = 0;
+	val_adc2 = 0;
+	while (f_touch == 0) {
+		for (int i = 0; i < samples; i++) {
+			readTouchY();
+			if (flag_adc == 0) {
+				temp += val_adc2;
+			}
+		}
+		temp = temp/samples;
+		if (temp < 200 && temp > 50) f_touch = 1;
+	}
+
+	for (int i = 0; i < 20; i++) {
+		readTouchX();
+		if (flag_adc == 0) {
+			temp += val_adc1;
+		}
+	}
+	touchx2 = temp/samples;
+
+	sprintf(resultx, "%i", touchx2);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchY();
+		if (flag_adc == 0) {
+			temp += val_adc2;
+		}
+	}
+	touchy2 = temp/samples;
+
+	sprintf(resulty, "%i", touchy2);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+
+	fillRect(20, 200, 11, 11, RED);
+
+	x3 = 20 + 11/2; // Ponto X3 + Largura do ponto
+	y3 = 200 + 11/2; // Ponto Y3 + Largura do ponto
+
+	f_touch = 0;
+	temp = 0;
+	val_adc1 = 0;
+	while (f_touch == 0) {
+		for (int i = 0; i < samples; i++) {
+			readTouchX();
+			if (flag_adc == 0) {
+				temp += val_adc1;
+			}
+		}
+		temp = temp/samples;
+		if (temp > 10) f_touch = 1;
+	}
+
+	for (int i = 0; i < samples; i++) {
+		readTouchX();
+		if (flag_adc == 0) {
+			temp += val_adc1;
+		}
+	}
+	touchx3 = temp/samples;
+
+	sprintf(resultx, "%i", touchx3);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchY();
+		if (flag_adc == 0) {
+			temp += val_adc2;
+		}
+	}
+	touchy3 = temp/samples;
+
+	sprintf(resulty, "%i", touchy3);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+
+	int A[3][3] =
+	{
+		{touchx1,touchy1,1}  ,
+		{touchx2,touchy2,1}  ,
+		{touchx3,touchy3,1}
+	};
+
+	for(int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			if (i == j) {
+				ident[i][j] = 1;
+			}
+			else {
+				ident[i][j] = 0;
+			}
+		}
+	}
+
+	for (int j = 0; j < 3; j++) {
+		for (int k = 0; k < 3; k++) {
+			A[j][k] = A[j][k]/A[j][j];
+			ident[j][k] = ident[j][k]/A[j][j];
+		}
+
+		for (int i = 0; i < 3; i++) {
+			if (i != j) {
+				for (int k = 0; k < 3; k++) {
+					A[j][k] = A[i][k] - (A[i][j] * A[j][k]);
+					ident[i][k] = ident[i][k] - (A[i][j] * ident[j][k]);
+				}
+			}
+		}
+	}
+
+	sprintf(resultx, "%i", touchx1);
+
+	setCursor(30, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchy1);
+
+	setCursor(60, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchx2);
+
+	setCursor(90, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resulty, "%i", touchy2);
+
+	setCursor(30, 80);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchx3);
+
+	setCursor(80, 80);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchy3);
+
+	setCursor(120, 80);
+	setTextSize(2);
+	print(resulty);
+
+}
+
+
+
+
+
 void setRotation(uint8_t r) {
 	uint16_t GS, SS_v, ORG, REV = _lcd_rev;
 	uint8_t val;
@@ -871,8 +1117,6 @@ void readTouchX() {
 	flag_adc = 1;
 	HAL_ADC_Start_IT(&hadc1);
 	wr_output();
-
-
 }
 
 void readTouchY() {
