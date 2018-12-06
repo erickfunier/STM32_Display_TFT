@@ -2058,6 +2058,6 @@ static const int font [256][5][8] = {
 	{0,1,1,1,1,1,1,1}  , // character 0xFF column 5 .*******
 },
 
-}
+};
 
 #endif /* FONT_ASCII_256_H_ */
