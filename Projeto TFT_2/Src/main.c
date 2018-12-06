@@ -130,6 +130,7 @@ static uint8_t done_reset;
 uint32_t ADC_BUF[3];
 int touchx_atual = 0;
 int touchy_atual = 0;
+int ldr_atual = 0;
 int flag_adc = 1;
 int teste = 0;
 int eixo_y_plus = 0;
@@ -1078,6 +1079,12 @@ void testDrawScreen() {
 	setTextSize(2);
 	print("Y:");
 
+	setCursor(200, 148);
+	setTextColor(BLUE, GREEN);
+	setTextSize(2);
+	print("LDR:");
+
+
 	//vertScroll(0, 320, teste);
 
 	if (teste >= 320) {
@@ -1376,6 +1383,33 @@ void readTouchY() {
 
 }
 
+void readLDR() {
+	char ldr_result[50];
+	int ldr_samples = 20;
+	int ldr_temp = 0;
+
+	int ldr_samples = 20;
+		int ldr_temp = 0;
+
+		for (int i = 0; i < 20; i++) {
+			flag_adc = 1;
+			HAL_ADC_Start_IT(&hadc1);
+			if (flag_adc == 0) {
+				ldr_temp += val_adc3;
+			}
+		}
+
+		ldr_atual = ldr_temp/ldr_samples;
+		sprintf(ldr_result, "%i", ldr_atual);
+
+		fillRect(210, 148, 80, 18, GREEN);
+
+		setCursor(210, 148);
+		setTextSize(2);
+		print(ldr_result);
+
+
+}
 void writeCmd (uint16_t cmd) {
 	rs_cmd();
 	write16(cmd);
