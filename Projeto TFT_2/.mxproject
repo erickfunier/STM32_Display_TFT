@@ -1,7 +1,7 @@
 [PreviousGenFiles]
-HeaderPath=C:/Users/saulo/OneDrive/Documentos/GitHub/STM32_Display_TFT/Projeto TFT_2/Inc
+HeaderPath=D:/Users/Erick/Documents/GitHub/STM32_Display_TFT/Projeto TFT_2/Inc
 HeaderFiles=stm32f1xx_it.h;stm32f1xx_hal_conf.h;main.h;
-SourcePath=C:/Users/saulo/OneDrive/Documentos/GitHub/STM32_Display_TFT/Projeto TFT_2/Src
+SourcePath=D:/Users/Erick/Documents/GitHub/STM32_Display_TFT/Projeto TFT_2/Src
 SourceFiles=stm32f1xx_it.c;stm32f1xx_hal_msp.c;main.c;
 
 [PreviousLibFiles]

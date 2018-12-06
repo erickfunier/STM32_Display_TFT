@@ -126,7 +126,7 @@ static uint8_t done_reset;
 
 #define PI 3.14159265
 
-uint32_t ADC_BUF[2];
+uint32_t ADC_BUF[3];
 int touchx_atual = 0;
 int touchy_atual = 0;
 int flag_adc = 1;
@@ -194,10 +194,12 @@ void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 /* USER CODE BEGIN 0 */
 uint32_t val_adc1; // valor lido no conv ADC
 uint32_t val_adc2; // valor lido no conv ADC
+uint32_t val_adc3; // valor lido no conv ADC
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)	{
 	if(hadc->Instance == ADC1)	{
 		val_adc1 = ADC_BUF[0];
 		val_adc2 = ADC_BUF[1];
+		val_adc3 = ADC_BUF[2];
 		flag_adc = 0;
 	}
 }
@@ -237,7 +239,7 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   begin(0x1289);
-  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,2);
+  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,3);
   HAL_ADC_Start_IT(&hadc1);
   /* USER CODE END 2 */
 
@@ -331,7 +333,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.NbrOfConversion = 3;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -351,6 +353,15 @@ static void MX_ADC1_Init(void)
     */
   sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+    /**Configure Regular Channel 
+    */
+  sConfig.Channel = ADC_CHANNEL_8;
+  sConfig.Rank = ADC_REGULAR_RANK_3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -381,6 +392,7 @@ static void MX_DMA_Init(void)
         * EXTI
      PA1   ------> SharedAnalog_PA1
      PA2   ------> SharedAnalog_PA2
+     PB0   ------> SharedAnalog_PB0
 */
 static void MX_GPIO_Init(void)
 {
@@ -421,6 +433,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB10 PB11 PB4 PB5 
                            PB6 PB7 PB8 PB9 */
@@ -609,22 +626,6 @@ void testDrawScreen() {
 
 	fillRect(320-teste, 100, 4, 30, RED);
 	fillRect(320-teste+4, 100, 4, 30, GREEN);
-
-	/*if (eixo_y_plus < 20) {
-		fillRect(100+teste-2, 100+eixo_y_plus, 2, 2, RED);
-		fillRect(100+teste-6, 100+eixo_y_plus-1, 2, 2, GREEN);
-		eixo_y_plus++;
-
-	} else {
-		fillRect(100+teste-2, 100+eixo_y_minus, 2, 2, RED);
-		fillRect(100+teste-6, 100+eixo_y_minus+1, 2, 2, GREEN);
-		eixo_y_minus--;
-
-		if (eixo_y_minus == 0) {
-			eixo_y_plus = 0;
-			eixo_y_minus = 20;
-		}
-	}*/
 }
 
 void calibrateTouch(){
