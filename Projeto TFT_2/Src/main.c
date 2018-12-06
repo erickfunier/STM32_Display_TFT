@@ -131,6 +131,7 @@ uint32_t ADC_BUF[3];
 int touchx_atual = 0;
 int touchy_atual = 0;
 int ldr_atual = 0;
+int milliVolt_ldr = 0;
 int flag_adc = 1;
 int teste = 0;
 int eixo_y_plus = 0;
@@ -182,6 +183,7 @@ void drawPixel(int16_t x, int16_t y, uint16_t color);
 void drawHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
 void drawVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
 void readTouch();
+void readLDR();
 void wr_output();
 void wr_analog_input();
 void readTouchX();
@@ -256,6 +258,7 @@ int main(void)
 	  //fillScreen(GREEN);
 	   testDrawScreen();
 	   readTouch();
+	   readLDR();
 
   }
   /* USER CODE END 3 */
@@ -1079,7 +1082,7 @@ void testDrawScreen() {
 	setTextSize(2);
 	print("Y:");
 
-	setCursor(200, 148);
+	setCursor(16, 200);
 	setTextColor(BLUE, GREEN);
 	setTextSize(2);
 	print("LDR:");
@@ -1385,31 +1388,31 @@ void readTouchY() {
 
 void readLDR() {
 	char ldr_result[50];
-	int ldr_samples = 20;
+	int ldr_samples = 100;
 	int ldr_temp = 0;
 
-	int ldr_samples = 20;
-		int ldr_temp = 0;
-
-		for (int i = 0; i < 20; i++) {
-			flag_adc = 1;
-			HAL_ADC_Start_IT(&hadc1);
-			if (flag_adc == 0) {
-				ldr_temp += val_adc3;
-			}
+	for (int i = 0; i < 100; i++) {
+		flag_adc = 1;
+		HAL_ADC_Start_IT(&hadc1);
+		if (flag_adc == 0) {
+			ldr_temp += val_adc3;
 		}
+	}
 
-		ldr_atual = ldr_temp/ldr_samples;
-		sprintf(ldr_result, "%i", ldr_atual);
+	ldr_atual = ldr_temp/ldr_samples;
 
-		fillRect(210, 148, 80, 18, GREEN);
+	milliVolt_ldr = ldr_atual*3300/4095;
 
-		setCursor(210, 148);
-		setTextSize(2);
-		print(ldr_result);
+	sprintf(ldr_result, "%i", milliVolt_ldr);
 
+	fillRect(60, 200, 80, 50, GREEN);
 
+	setCursor(60, 200);
+	setTextSize(2);
+	print(ldr_result);
 }
+
+
 void writeCmd (uint16_t cmd) {
 	rs_cmd();
 	write16(cmd);
