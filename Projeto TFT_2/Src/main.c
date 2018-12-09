@@ -673,20 +673,23 @@ void testDrawScreen() {
 void calibrateTouch(){
 	char resultx[50];
 	char resulty[50];
-	int samples = 5000;
+	int samples = 100;
 	int temp = 0;
 	int f_touch = 0;
 	int failcount = 0;
 	int count = 0;
 	bool OK = false;
 
-	int x1, x2, x3 = 0;
-	int y1, y2, y3 = 0;
-	int touchx1, touchx2, touchx3 = 0;
-	int touchy1, touchy2, touchy3 = 0;
+	int x1, x2, x3;
+	int y1, y2, y3;
+	int touchx1 = 0, touchx2 = 0, touchx3 = 0;
+	int touchy1 = 0, touchy2 = 0, touchy3 = 0;
+	int alphaX, betaX, deltaX;
+	int alphaY, betaY, deltaY;
+	int X, Y;
 
 	setTextColor(BLUE, GREEN);
-	setCursor(90, 120);
+	setCursor(60, 120);
 	setTextSize(2);
 	print("Pressione na cruz!");
 
@@ -694,11 +697,15 @@ void calibrateTouch(){
 
 	while (!OK) {
 		while (!ISPRESSED()) {};
-		fillRect(90, 120, 220, 16, GREEN);
-		setCursor(90, 120);
-		print("Segure!");
+		fillRect(60, 120, 220, 16, GREEN);
+		setCursor(60, 120);
+		print("Mantenha pressionado!");
 		count = 0;
 		do {
+			if (samples-count-1 < 10) fillRect(65, 140, 25, 16, GREEN);
+			setCursor(60, 140);
+			sprintf(resultx, "%i", samples-count-1);
+			print(resultx);
 			readTouch();
 			if (touchz_atual > 200) {
 				touchx1 += touchx_atual;
@@ -721,11 +728,208 @@ void calibrateTouch(){
 			setCursor(90, 120);
 			print("FAIL!");
 		}
+	};
+
+	touchx1 = touchx1/samples;
+	touchy1 = touchy1/samples;
+
+	fillRect(20, 20, 20, 20, GREEN); //Apaga a cruz
+	fillRect(60, 140, 25, 16, GREEN); //Apaga o timer
+	drawCross(100, 200, BLUE, GREEN); //Desenha nova cruz
+	fillRect(60, 120, 280, 16, GREEN); //Apaga texto
+	setCursor(60, 180);
+	print("Pressione na cruz!");
+	while (ISPRESSED()) {}; //Aguarda retirar o toque da cruz anterior
+	OK = false;
+
+	while (!OK) {
+		while (!ISPRESSED()) {};
+		fillRect(60, 180, 220, 16, GREEN);
+		setCursor(60, 180);
+		print("Mantenha pressionado!");
+		count = 0;
+		do {
+			if (samples-count-1 < 10) fillRect(65, 200, 25, 16, GREEN);
+			setCursor(60, 200);
+			sprintf(resultx, "%i", samples-count-1);
+			print(resultx);
+			readTouch();
+			if (touchz_atual > 200) {
+				touchx2 += touchx_atual;
+				touchy2 += touchy_atual;
+				count++;
+			} else {
+				failcount++;
+			}
+		} while ((count < samples) && (failcount < 10000));
+
+		if(count >= samples) {
+			OK = true;
+		} else {
+			touchx2 = 0;
+			touchy2 = 0;
+			count = 0;
+		}
+		if (failcount >= 10000) {
+			fillRect(90, 120, 200, 16, GREEN);
+			setCursor(90, 120);
+			print("FAIL!");
+		}
 	}
+
+	touchx2 = touchx2/samples;
+	touchy2 = touchy2/samples;
+
+	fillRect(200, 100, 20, 20, GREEN); //Apaga a cruz
+	fillRect(60, 200, 25, 16, GREEN); //Apaga o timer
+	drawCross(200, 20, BLUE, GREEN); //Desenha nova cruz
+	fillRect(60, 180, 280, 16, GREEN); //Apaga texto
+	setCursor(60, 100);
+	print("Pressione na cruz!");
+	while (ISPRESSED()) {}; //Aguarda retirar o toque da cruz anterior
+	OK = false;
+
+	while (!OK) {
+		while (!ISPRESSED()) {};
+		fillRect(60, 100, 220, 16, GREEN);
+		setCursor(60, 100);
+		print("Mantenha pressionado!");
+		count = 0;
+		do {
+			if (samples-count-1 < 10) fillRect(65, 120, 25, 16, GREEN);
+			setCursor(60, 120);
+			sprintf(resultx, "%i", samples-count-1);
+			print(resultx);
+			readTouch();
+			if (touchz_atual > 200) {
+				touchx3 += touchx_atual;
+				touchy3 += touchy_atual;
+				count++;
+			} else {
+				failcount++;
+			}
+		} while ((count < samples) && (failcount < 10000));
+
+		if(count >= samples) {
+			OK = true;
+		} else {
+			touchx3 = 0;
+			touchy3 = 0;
+			count = 0;
+		}
+		if (failcount >= 10000) {
+			fillRect(90, 100, 200, 16, GREEN);
+			setCursor(90, 100);
+			print("FAIL!");
+		}
+	}
+
+	touchx3 = touchx3/samples;
+	touchy3 = touchy3/samples;
+
+	int ident[3][3];
 
 	x1 = 20 + 15/2; // Ponto X1 + Largura do ponto
 	y1 = 20 + 15/2; // Ponto Y1 + Largura do ponto
+	x2 = 200 + 15/2; // Ponto X2 + Largura do ponto
+	y2 = 100 + 15/2; // Ponto Y2 + Largura do ponto
+	x3 = 200 + 15/2; // Ponto X3 + Largura do ponto
+	y3 = 20 + 15/2; // Ponto Y3 + Largura do ponto
 
+	int A[3][3] =
+	{
+		{touchx1,touchy1,1}  ,
+		{touchx2,touchy2,1}  ,
+		{touchx3,touchy3,1}
+	};
+
+	for(int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			if (i == j) {
+				ident[i][j] = 1;
+			}
+			else {
+				ident[i][j] = 0;
+			}
+		}
+	}
+
+	for (int j = 0; j < 3; j++) {
+		for (int k = 0; k < 3; k++) {
+			A[j][k] = A[j][k]/A[j][j];
+			ident[j][k] = ident[j][k]/A[j][j];
+		}
+
+		for (int i = 0; i < 3; i++) {
+			if (i != j) {
+				for (int k = 0; k < 3; k++) {
+					A[j][k] = A[i][k] - (A[i][j] * A[j][k]);
+					ident[i][k] = ident[i][k] - (A[i][j] * ident[j][k]);
+				}
+			}
+		}
+	}
+
+	fillScreen(GREEN);
+
+	sprintf(resultx, "%i", touchx1);
+
+	setCursor(10, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchy1);
+
+	setCursor(110, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchx2);
+
+	setCursor(10, 80);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resulty, "%i", touchy2);
+
+	setCursor(110, 80);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchx3);
+
+	setCursor(10, 120);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchy3);
+
+	setCursor(110, 120);
+	setTextSize(2);
+	print(resulty);
+
+	alphaX = (ident[0][0]*x1) + (ident[0][1]*x2) + (x3);
+	betaX = (ident[1][0]*x1) + (ident[1][1]*x2) + (x3);
+	deltaX = (ident[2][0]*x1) + (ident[2][1]*x2) + (x3);
+
+	alphaY = (ident[0][0]*y1) + (ident[0][1]*y2) + (y3);
+	betaY = (ident[1][0]*y1) + (ident[1][1]*y2) + (y3);
+	deltaY = (ident[2][0]*y1) + (ident[2][1]*y2) + (y3);
+
+	X = (alphaX * touchx1) + (betaX * touchy1) + deltaX;
+	Y = (alphaY * touchy1) + (betaY * touchy1) + deltaY;
+
+	sprintf(resulty, "%i", X);
+
+	setCursor(10, 160);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", Y);
+
+	setCursor(110, 160);
+	setTextSize(2);
+	print(resulty);
 
 	run = true;
 
@@ -1077,6 +1281,11 @@ void drawChar(uint16_t WIDTH, uint16_t HEIGHT, int16_t x, int16_t y, unsigned ch
 					drawPixel(x+j, y+i, color);
 				else
 					fillRect(x+j*size, y+i*size, size, size, color);
+			} else {
+				if (size == 1)
+					drawPixel(x+j, y+i, textbgcolor);
+				else
+					fillRect(x+j*size, y+i*size, size, size, textbgcolor);
 			}
 		}
 	}
@@ -1087,6 +1296,8 @@ void drawCross(int16_t x, int16_t y, uint16_t color, uint16_t textbgcolor) {
 		for(int8_t j=0; j<15; j++) {
 			if(cross_icon[j][14-i] == 1) {
 				drawPixel(x+j, y+i, color);
+			} else {
+				drawPixel(x+j, y+i, textbgcolor);
 			}
 		}
 	}
@@ -1177,7 +1388,7 @@ void write_8(uint8_t x) {
 void readTouch(){
 	char resultx[50];
 	char resulty[50];
-	int samples = 20;
+	int samples = 100;
 	int temp = 0;
 	int temp1 = 0;
 
@@ -1199,7 +1410,7 @@ void readTouch(){
 	//setCursor(40, 148);
 	//setTextSize(2);
 	//print(resultx);
-	flag_adc == 1;
+	flag_adc = 1;
 	temp = 0;
 	readTouchY();
 	for (int i = 0; i < samples; i++) {
