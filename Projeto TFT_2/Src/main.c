@@ -124,11 +124,15 @@ static uint8_t done_reset;
 #define LCD_D7_PORT GPIOB
 #define LCD_D7_PIN GPIO_PIN_10
 
+#define MINPRESSURE 3000
+#define MAXPRESSURE 3800
+
 #define PI 3.14159265
 
-uint32_t ADC_BUF[3];
+uint32_t ADC_BUF[2];
 int touchx_atual = 0;
 int touchy_atual = 0;
+int touchz_atual = 0;
 int flag_adc = 1;
 int teste = 0;
 int eixo_y_plus = 0;
@@ -194,12 +198,10 @@ void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 /* USER CODE BEGIN 0 */
 uint32_t val_adc1; // valor lido no conv ADC
 uint32_t val_adc2; // valor lido no conv ADC
-uint32_t val_adc3; // valor lido no conv ADC
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)	{
 	if(hadc->Instance == ADC1)	{
 		val_adc1 = ADC_BUF[0];
 		val_adc2 = ADC_BUF[1];
-		val_adc3 = ADC_BUF[2];
 		flag_adc = 0;
 	}
 }
@@ -239,7 +241,7 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   begin(0x1289);
-  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,3);
+  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,2);
   HAL_ADC_Start_IT(&hadc1);
   /* USER CODE END 2 */
 
@@ -252,13 +254,15 @@ int main(void)
 
   /* USER CODE BEGIN 3 */
 	  //fillScreen(GREEN);
-	   calibrateTouch();
-	   //testDrawScreen();
-	   //readTouch();
+	   //calibrateTouch();
+	  testDrawScreen();
+	  readTouch();
+	  //drawPixel(40, 10, RED);
+	  //drawPixel(80, 20, RED);
+	  //drawPixel(209, 299, RED);
 
   }
   /* USER CODE END 3 */
-
 }
 
 /**
@@ -333,7 +337,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 3;
+  hadc1.Init.NbrOfConversion = 2;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -353,15 +357,6 @@ static void MX_ADC1_Init(void)
     */
   sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = ADC_REGULAR_RANK_2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-    /**Configure Regular Channel 
-    */
-  sConfig.Channel = ADC_CHANNEL_8;
-  sConfig.Rank = ADC_REGULAR_RANK_3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -392,7 +387,6 @@ static void MX_DMA_Init(void)
         * EXTI
      PA1   ------> SharedAnalog_PA1
      PA2   ------> SharedAnalog_PA2
-     PB0   ------> SharedAnalog_PB0
 */
 static void MX_GPIO_Init(void)
 {
@@ -433,11 +427,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB10 PB11 PB4 PB5 
                            PB6 PB7 PB8 PB9 */
@@ -578,9 +567,15 @@ void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
 void drawPixel(int16_t x, int16_t y, uint16_t color)
 {
     // MCUFRIEND just plots at edge if you try to write outside of the box:
-    if (x < 0 || y < 0 || x >= WIDTH || y >= HEIGHT)
-        return;
-    setAddrWindow(x, y, x, y);
+    if (rotation & 1) {
+    	if (x < 0 || y < 0 || x >= HEIGHT || y >= WIDTH)
+    	        return;
+    	setAddrWindow(y, x, y, x);
+    } else {
+    	if (x < 0 || y < 0 || x >= WIDTH || y >= HEIGHT)
+    	        return;
+    	setAddrWindow(x, y, x, y);
+    }
     writeCmdData(_MW, color);
 }
 
@@ -596,8 +591,8 @@ void testDrawScreen() {
 	setTextColor(BLUE, GREEN);
 	setTextSize(4);
 	print("BoTaO 1");
-	drawRect(10, 62, 185, 45, BLUE);
-	drawRect(11, 63, 183, 43, BLUE);
+	drawRect(61, 10, 45, 185, BLUE);
+	drawRect(62, 11, 43, 183, BLUE);
 
 	setCursor(16, 148);
 	setTextColor(BLUE, GREEN);
@@ -609,6 +604,11 @@ void testDrawScreen() {
 	setTextSize(2);
 	print("Y:");
 
+	setCursor(200, 148);
+	setTextColor(BLUE, GREEN);
+	setTextSize(2);
+	print("Z:");
+
 	//vertScroll(0, 320, teste);
 
 	if (teste >= 320) {
@@ -617,15 +617,31 @@ void testDrawScreen() {
 		teste += 1;
 	}
 
-	if (touchx_atual > 150 && touchx_atual < 500 && touchy_atual > 780 && touchy_atual < 1450) {
+	/*if (touchx_atual > 150 && touchx_atual < 500 && touchy_atual > 780 && touchy_atual < 1450) {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	}
+	}*/
 
 
 	fillRect(320-teste, 100, 4, 30, RED);
 	fillRect(320-teste+4, 100, 4, 30, GREEN);
+
+	/*if (eixo_y_plus < 20) {
+		fillRect(100+teste-2, 100+eixo_y_plus, 2, 2, RED);
+		fillRect(100+teste-6, 100+eixo_y_plus-1, 2, 2, GREEN);
+		eixo_y_plus++;
+
+	} else {
+		fillRect(100+teste-2, 100+eixo_y_minus, 2, 2, RED);
+		fillRect(100+teste-6, 100+eixo_y_minus+1, 2, 2, GREEN);
+		eixo_y_minus--;
+
+		if (eixo_y_minus == 0) {
+			eixo_y_plus = 0;
+			eixo_y_minus = 20;
+		}
+	}*/
 }
 
 void calibrateTouch(){
@@ -871,8 +887,6 @@ void calibrateTouch(){
 
 
 
-
-
 void setRotation(uint8_t r) {
 	uint16_t GS, SS_v, ORG, REV = _lcd_rev;
 	uint8_t val;
@@ -980,8 +994,7 @@ void vertScroll (int16_t top, int16_t scrollines, int16_t offset) {
 	writeCmdData(0x41, vsp);        //VL#
 }
 
-void writeCmdData(uint16_t cmd, uint16_t dat)
-{
+void writeCmdData(uint16_t cmd, uint16_t dat) {
     cs_active();
     writeCmd(cmd);
     writeData(dat);
@@ -1073,13 +1086,16 @@ void write_8(uint8_t x) {
 void readTouch(){
 	char resultx[50];
 	char resulty[50];
-	int samples = 20;
+	int samples = 2;
 	int temp = 0;
+	int temp1 = 0;
 
-	for (int i = 0; i < 20; i++) {
+	for (int i = 0; i < samples; i++) {
 		readTouchX();
 		if (flag_adc == 0) {
 			temp += val_adc1;
+		} else {
+			i--;
 		}
 	}
 	touchx_atual = temp/samples;
@@ -1097,6 +1113,8 @@ void readTouch(){
 		readTouchY();
 		if (flag_adc == 0) {
 			temp += val_adc2;
+		} else {
+			i--;
 		}
 	}
 	touchy_atual = temp/samples;
@@ -1108,6 +1126,34 @@ void readTouch(){
 	setCursor(154, 148);
 	setTextSize(2);
 	print(resulty);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchZ();
+		if (flag_adc == 0) {
+			temp += val_adc1;
+			temp1 += val_adc2;
+		}
+	}
+	touchx_atual = temp/samples;
+	touchy_atual = temp1/samples;
+
+	touchz_atual = touchx_atual - touchy_atual;
+
+	sprintf(resultx, "%i", touchz_atual);
+	//sprintf(resulty, "%i", touchy_atual);
+
+	fillRect(210, 148, 100, 18, GREEN);
+
+	setCursor(210, 148);
+	setTextSize(2);
+	print(resultx);
+
+	if (touchz_atual > MINPRESSURE && touchz_atual < MAXPRESSURE) {
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+	} else {
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+	}
 }
 
 void readTouchX() {
@@ -1131,7 +1177,20 @@ void readTouchY() {
 	flag_adc = 1;
 	HAL_ADC_Start_IT(&hadc1);
 	rs_output();
+}
 
+void readTouchZ() {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+	rs_cmd();
+	rs_analog_input();
+	wr_active();
+	wr_analog_input();
+
+	flag_adc = 1;
+	HAL_ADC_Start_IT(&hadc1);
+	rs_output();
+	wr_output();
 }
 
 void writeCmd (uint16_t cmd) {
