@@ -45,6 +45,7 @@
 #include "stdio.h"
 #include "stdbool.h"
 #include "font_ascII_256.h"
+#include "cross_icon.h"
 #include <math.h>
 /* USER CODE END Includes */
 
@@ -123,8 +124,8 @@ static uint8_t done_reset;
 #define LCD_D7_PORT GPIOB
 #define LCD_D7_PIN GPIO_PIN_10
 
-#define MINPRESSURE 3000
-#define MAXPRESSURE 3800
+#define MINPRESSURE 200
+#define MAXPRESSURE 1000
 
 #define PI 3.14159265
 
@@ -136,6 +137,7 @@ int flag_adc = 1;
 int teste = 0;
 int eixo_y_plus = 0;
 int eixo_y_minus = 20;
+bool run = false;
 
 /* USER CODE END PV */
 
@@ -187,6 +189,7 @@ void wr_output();
 void wr_analog_input();
 void readTouchX();
 void readTouchY();
+void readTouchZ();
 void rs_analog_input();
 void rs_output();
 void drawChar(uint16_t WIDTH, uint16_t HEIGHT, int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg_color, uint8_t size);
@@ -202,6 +205,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)	{
 		val_adc1 = ADC_BUF[0];
 		val_adc2 = ADC_BUF[1];
 		flag_adc = 0;
+		rs_output();
+		wr_output();
 	}
 }
 
@@ -253,9 +258,9 @@ int main(void)
 
   /* USER CODE BEGIN 3 */
 	  //fillScreen(GREEN);
-	   //calibrateTouch();
-	  testDrawScreen();
-	  readTouch();
+	  if(!run) calibrateTouch();
+	  //testDrawScreen();
+	  //readTouch();
 	  //drawPixel(40, 10, RED);
 	  //drawPixel(80, 20, RED);
 	  //drawPixel(209, 299, RED);
@@ -497,6 +502,28 @@ void begin(uint16_t ID) {
     fillScreen(GREEN);
 }
 
+bool ISPRESSED(void)
+{
+    // .kbv this was too sensitive !!
+    // now touch has to be stable for 50ms
+    int count = 0;
+    bool state, oldstate = false;
+    readTouchZ();
+    while (count < 10) {
+        if (flag_adc == 0) {
+        	touchz_atual = (4096 - (val_adc1 - val_adc2));
+			state = touchz_atual > 200;     //ADJUST THIS VALUE TO SUIT YOUR SCREEN e.g. 20 ... 250
+			if (state == oldstate) count++;
+			else count = 0;
+			oldstate = state;
+			readTouchZ();
+        } else {
+        	HAL_Delay(1);
+        }
+    }
+    return oldstate;
+}
+
 void invertDisplay(bool i) {
     _lcd_rev = ((_lcd_capable & REV_SCREEN) != 0) ^ i;
     _lcd_drivOut &= ~(1 << 13);
@@ -646,20 +673,66 @@ void testDrawScreen() {
 void calibrateTouch(){
 	char resultx[50];
 	char resulty[50];
-	int samples = 500;
+	int samples = 5000;
 	int temp = 0;
 	int f_touch = 0;
-
-	setTextColor(BLUE, GREEN);
+	int failcount = 0;
+	int count = 0;
+	bool OK = false;
 
 	int x1, x2, x3 = 0;
 	int y1, y2, y3 = 0;
 	int touchx1, touchx2, touchx3 = 0;
 	int touchy1, touchy2, touchy3 = 0;
 
-	int ident[3][3];
+	setTextColor(BLUE, GREEN);
+	setCursor(90, 120);
+	setTextSize(2);
+	print("Pressione na cruz!");
 
-	fillRect(20, 20, 11, 11, RED);
+	drawCross(20, 20, BLUE, GREEN);
+
+	while (!OK) {
+		while (!ISPRESSED()) {};
+		fillRect(90, 120, 220, 16, GREEN);
+		setCursor(90, 120);
+		print("Segure!");
+		count = 0;
+		do {
+			readTouch();
+			if (touchz_atual > 200) {
+				touchx1 += touchx_atual;
+				touchy1 += touchy_atual;
+				count++;
+			} else {
+				failcount++;
+			}
+		} while ((count < samples) && (failcount < 10000));
+
+		if(count >= samples) {
+			OK = true;
+		} else {
+			touchx1 = 0;
+			touchy1 = 0;
+			count = 0;
+		}
+		if (failcount >= 10000) {
+			fillRect(90, 120, 200, 16, GREEN);
+			setCursor(90, 120);
+			print("FAIL!");
+		}
+	}
+
+	x1 = 20 + 15/2; // Ponto X1 + Largura do ponto
+	y1 = 20 + 15/2; // Ponto Y1 + Largura do ponto
+
+
+	run = true;
+
+	/*int ident[3][3];
+
+	//fillRect(20, 20, 11, 11, RED);
+	drawCross(20, 20, BLUE, GREEN);
 
 	x1 = 20 + 11/2; // Ponto X1 + Largura do ponto
 	y1 = 20 + 11/2; // Ponto Y1 + Largura do ponto
@@ -669,19 +742,13 @@ void calibrateTouch(){
 			readTouchX();
 			if (flag_adc == 0) {
 				temp += val_adc1;
+			} else {
+				i--;
 			}
 		}
-		temp = temp/samples;
-		if (temp > 10) f_touch = 1;
+		touchx1 = temp/samples;
+		if (ISPRESSED()) f_touch = 1;
 	}
-
-	for (int i = 0; i < 20; i++) {
-		readTouchX();
-		if (flag_adc == 0) {
-			temp += val_adc1;
-		}
-	}
-	touchx1 = temp/samples;
 
 	sprintf(resultx, "%i", touchx1);
 
@@ -721,10 +788,12 @@ void calibrateTouch(){
 			readTouchY();
 			if (flag_adc == 0) {
 				temp += val_adc2;
+			} else {
+				i--;
 			}
 		}
 		temp = temp/samples;
-		if (temp < 200 && temp > 50) f_touch = 1;
+		if (ISPRESSED()) f_touch = 1;
 	}
 
 	for (int i = 0; i < 20; i++) {
@@ -773,10 +842,12 @@ void calibrateTouch(){
 			readTouchX();
 			if (flag_adc == 0) {
 				temp += val_adc1;
+			} else {
+				i--;
 			}
 		}
 		temp = temp/samples;
-		if (temp > 10) f_touch = 1;
+		if (ISPRESSED()) f_touch = 1;
 	}
 
 	for (int i = 0; i < samples; i++) {
@@ -881,10 +952,8 @@ void calibrateTouch(){
 	setCursor(120, 80);
 	setTextSize(2);
 	print(resulty);
-
+	*/
 }
-
-
 
 void setRotation(uint8_t r) {
 	uint16_t GS, SS_v, ORG, REV = _lcd_rev;
@@ -1013,6 +1082,15 @@ void drawChar(uint16_t WIDTH, uint16_t HEIGHT, int16_t x, int16_t y, unsigned ch
 	}
 }
 
+void drawCross(int16_t x, int16_t y, uint16_t color, uint16_t textbgcolor) {
+	for(int8_t i=0; i<15; i++) {
+		for(int8_t j=0; j<15; j++) {
+			if(cross_icon[j][14-i] == 1) {
+				drawPixel(x+j, y+i, color);
+			}
+		}
+	}
+}
 
 void setAddrWindow(int16_t x, int16_t y, int16_t x1, int16_t y1) {
     writeCmdData(_MC, x);
@@ -1099,62 +1177,66 @@ void write_8(uint8_t x) {
 void readTouch(){
 	char resultx[50];
 	char resulty[50];
-	int samples = 2;
+	int samples = 20;
 	int temp = 0;
 	int temp1 = 0;
 
+	readTouchX();
 	for (int i = 0; i < samples; i++) {
-		readTouchX();
 		if (flag_adc == 0) {
 			temp += val_adc1;
+			readTouchX();
 		} else {
 			i--;
 		}
 	}
 	touchx_atual = temp/samples;
 
-	sprintf(resultx, "%i", touchx_atual);
+	//sprintf(resultx, "%i", touchx_atual);
 
-	fillRect(40, 148, 80, 18, GREEN);
+	//fillRect(40, 148, 80, 18, GREEN);
 
-	setCursor(40, 148);
-	setTextSize(2);
-	print(resultx);
-
+	//setCursor(40, 148);
+	//setTextSize(2);
+	//print(resultx);
+	flag_adc == 1;
 	temp = 0;
+	readTouchY();
 	for (int i = 0; i < samples; i++) {
-		readTouchY();
 		if (flag_adc == 0) {
 			temp += val_adc2;
+			readTouchY();
 		} else {
 			i--;
 		}
 	}
 	touchy_atual = temp/samples;
 
-	sprintf(resulty, "%i", touchy_atual);
+	//sprintf(resulty, "%i", touchy_atual);
 
-	fillRect(154, 148, 80, 18, GREEN);
+	//fillRect(154, 148, 80, 18, GREEN);
 
-	setCursor(154, 148);
-	setTextSize(2);
-	print(resulty);
+	//setCursor(154, 148);
+	//setTextSize(2);
+	//print(resulty);
 
-	temp = 0;
+	/*temp = 0;
+	readTouchZ();
 	for (int i = 0; i < samples; i++) {
-		readTouchZ();
 		if (flag_adc == 0) {
 			temp += val_adc1;
 			temp1 += val_adc2;
+			readTouchZ();
+		} else {
+			i--;
 		}
 	}
 	touchx_atual = temp/samples;
 	touchy_atual = temp1/samples;
 
-	touchz_atual = touchx_atual - touchy_atual;
+	touchz_atual = (4096 - (touchx_atual - touchy_atual));
 
 	sprintf(resultx, "%i", touchz_atual);
-	//sprintf(resulty, "%i", touchy_atual);
 
 	fillRect(210, 148, 100, 18, GREEN);
 
@@ -1162,11 +1244,11 @@ void readTouch(){
 	setTextSize(2);
 	print(resultx);
 
-	if (touchz_atual > MINPRESSURE && touchz_atual < MAXPRESSURE) {
+	if (ISPRESSED()) {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	}
+	}*/
 }
 
 void readTouchX() {
@@ -1176,7 +1258,6 @@ void readTouchX() {
 
 	flag_adc = 1;
 	HAL_ADC_Start_IT(&hadc1);
-	wr_output();
 }
 
 void readTouchY() {
@@ -1189,7 +1270,6 @@ void readTouchY() {
 
 	flag_adc = 1;
 	HAL_ADC_Start_IT(&hadc1);
-	rs_output();
 }
 
 void readTouchZ() {
@@ -1202,8 +1282,6 @@ void readTouchZ() {
 
 	flag_adc = 1;
 	HAL_ADC_Start_IT(&hadc1);
-	rs_output();
-	wr_output();
 }
 
 void writeCmd (uint16_t cmd) {
