@@ -44,8 +44,7 @@
 #include "string.h"
 #include "stdio.h"
 #include "stdbool.h"
-#include "font.h"
-#include "draw_char.h"
+#include "font_ascII_256.h"
 #include <math.h>
 /* USER CODE END Includes */
 
@@ -1000,6 +999,20 @@ void writeCmdData(uint16_t cmd, uint16_t dat) {
     writeData(dat);
     cs_idle();
 }
+
+void drawChar(uint16_t WIDTH, uint16_t HEIGHT, int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t textbgcolor, uint8_t size) {
+	for(int8_t i=0; i<8; i++) {
+		for(int8_t j=0; j<5; j++) {
+			if(font[c][j][7-i] == 1) {
+				if (size == 1)
+					drawPixel(x+j, y+i, color);
+				else
+					fillRect(x+j*size, y+i*size, size, size, color);
+			}
+		}
+	}
+}
+
 
 void setAddrWindow(int16_t x, int16_t y, int16_t x1, int16_t y1) {
     writeCmdData(_MC, x);
