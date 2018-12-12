@@ -39,20 +39,22 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f1xx_hal.h"
+#include "stm32f1xx_hal_tim.h"
 
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "stdio.h"
 #include "stdbool.h"
-//#include "font.h"
 #include "font_ascII_256.h"
-//#include "draw_char.h"
+/*#include "cross_icon.h"*/
 #include <math.h>
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
+
+TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -125,15 +127,27 @@ static uint8_t done_reset;
 #define LCD_D7_PORT GPIOB
 #define LCD_D7_PIN GPIO_PIN_10
 
+#define MINPRESSURE 200
+#define MAXPRESSURE 1000
+
 #define PI 3.14159265
+
+uint8_t wave[320];
+uint8_t x_wave, y_pos = 0;
+uint8_t base_tempo = 20;
+uint8_t altura = 10;
 
 uint32_t ADC_BUF[3];
 int touchx_atual = 0;
 int touchy_atual = 0;
+int touchz_atual = 0;
+int ldr_atual = 0;
+int milliVolt_ldr = 0;
 int flag_adc = 1;
 int teste = 0;
 int eixo_y_plus = 0;
 int eixo_y_minus = 20;
+bool run = false;
 
 /* USER CODE END PV */
 
@@ -142,6 +156,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM2_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -185,10 +200,15 @@ void wr_output();
 void wr_analog_input();
 void readTouchX();
 void readTouchY();
+void readTouchZ();
 void rs_analog_input();
 void rs_output();
 void drawChar(uint16_t WIDTH, uint16_t HEIGHT, int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg_color, uint8_t size);
 void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void readLDR(uint8_t altura);
+void drawWave(uint8_t x_pos, uint8_t y_pos, uint8_t altura);
+void drawAxis(uint8_t x_axis, uint8_t y_axis, uint16_t color, uint8_t div_x, uint8_t div_y);
+void drawFrame();
 
 /* USER CODE END PFP */
 
@@ -202,6 +222,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)	{
 		val_adc2 = ADC_BUF[1];
 		val_adc3 = ADC_BUF[2];
 		flag_adc = 0;
+		rs_output();
+		wr_output();
 	}
 }
 
@@ -238,10 +260,12 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   begin(0x1289);
   HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,3);
-  HAL_ADC_Start_IT(&hadc1);
+  //HAL_ADC_Start_IT(&hadc1);
+  //HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -253,8 +277,18 @@ int main(void)
 
   /* USER CODE BEGIN 3 */
 	  //fillScreen(GREEN);
-	   testDrawScreen();
-	   readTouch();
+	  //if(!run) calibrateTouch();
+	  //testDrawScreen();
+	  if (!run){
+		  drawFrame();
+		  HAL_TIM_Base_Start_IT(&htim2);
+		  run = true;
+	  }
+	  HAL_Delay(75);
+	  readTouch();
+	  //drawPixel(40, 10, RED);
+	  //drawPixel(80, 20, RED);
+	  //drawPixel(209, 310, RED);
 
   }
   /* USER CODE END 3 */
@@ -265,6 +299,213 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	htim2.Instance->CR1 &= ~TIM_CR1_CEN; // pause tim
+	drawWave(5,200,altura);
+	htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
+}
+
+/*void drawAxis(uint8_t x_axis, uint8_t y_axis, uint16_t color, uint8_t div_x, uint8_t div_y){
+	for(int8_t i=0; i < 320; i++){
+		drawPixel(i, y_axis, color);
+	}
+	for(int8_t i=0; i < WIDTH; i++){
+		drawPixel(x_axis, i, color);
+	}
+}*/
+
+void drawFrame(){
+		setCursor(280, 20);
+		setTextColor(BLUE, GREEN);
+		setTextSize(4);
+		print("U");
+		drawRect(15, 270, 40, 40, BLUE);
+
+		setCursor(280, 80);
+		setTextColor(RED, GREEN);
+		setTextSize(4);
+		print("D");
+		drawRect(75, 270, 40, 40, RED);
+
+		setCursor(280, 140);
+		setTextColor(CYAN, GREEN);
+		setTextSize(4);
+		print("T");
+		drawRect(135, 270, 40, 40, CYAN);
+
+		setCursor(280, 200);
+		setTextColor(WHITE, GREEN);
+		setTextSize(4);
+		print("S");
+		drawRect(195, 270, 40, 40, WHITE);
+}
+
+
+void drawWave(uint8_t x_pos, uint8_t y_pos, uint8_t altura) {
+	readLDR(altura);
+	//wave[x_wave] = milliVolt_ldr;
+	fillRect(x_wave, (y_pos-milliVolt_ldr<0?0:y_pos-milliVolt_ldr), 4, 4, BLUE);
+	if(++x_wave >= 245){
+		x_wave = x_pos;
+		//Limpa tela e pausa timer
+		htim2.Instance->CR1 &= ~TIM_CR1_CEN; // pause tim
+		fillRect(0, 0, 260, y_pos+5, GREEN);
+		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
+	}
+}
+
+void readLDR(uint8_t altura) {
+		flag_adc = 1;
+		HAL_ADC_Start_IT(&hadc1);
+		while(!flag_adc);
+		ldr_atual = val_adc3;
+
+	milliVolt_ldr = (ldr_atual*3300/4095)/altura;
+}
+
+bool ISPRESSED(void)
+{
+    // .kbv this was too sensitive !!
+    // now touch has to be stable for 50ms
+    int count = 0;
+    bool state, oldstate = false;
+    readTouchZ();
+    while (count < 10) {
+        if (flag_adc == 0) {
+        	touchz_atual = (4096 - (val_adc1 - val_adc2));
+			state = touchz_atual > 200;     //ADJUST THIS VALUE TO SUIT YOUR SCREEN e.g. 20 ... 250
+			if (state == oldstate) count++;
+			else count = 0;
+			oldstate = state;
+			readTouchZ();
+        } else {
+        	HAL_Delay(1);
+        }
+    }
+    return oldstate;
+}
+
+void readTouch(){
+	char resultx[50];
+	char resulty[50];
+	int samples = 20;
+	int temp = 0;
+
+	readTouchX();
+	for (int i = 0; i < samples; i++) {
+		if (flag_adc == 0) {
+			temp += val_adc1;
+			readTouchX();
+		} else {
+			i--;
+		}
+	}
+	touchx_atual = temp/samples;
+
+	sprintf(resultx, "%i", touchx_atual);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	flag_adc = 1;
+	temp = 0;
+
+	readTouchY();
+	for (int i = 0; i < samples; i++) {
+		if (flag_adc == 0) {
+			temp += val_adc2;
+			readTouchY();
+		} else {
+			i--;
+		}
+	}
+	touchy_atual = temp/samples;
+
+	sprintf(resulty, "%i", touchy_atual);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+
+	//Aumenta escala
+	if(ISPRESSED() && touchx_atual > 240 && touchx_atual < 500 && touchy_atual > 20 && touchy_atual < 120){
+		(altura -= 5) <= 5?altura = 5:"";
+
+		//Limpa tela e pausa timer
+		htim2.Instance->CR1 &= ~TIM_CR1_CEN; // pause tim
+		fillRect(0, 0, 260, y_pos+5, GREEN);
+		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
+	}
+	//Diminui escala
+	if(ISPRESSED() && touchx_atual > 180 && touchx_atual < 360 && touchy_atual > 70 && touchy_atual < 180){
+		altura += 5;
+
+		//Limpa tela e pausa timer
+		htim2.Instance->CR1 &= ~TIM_CR1_CEN; // pause tim
+		fillRect(0, 0, 260, y_pos+5, GREEN);
+		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
+	}
+	//Aumenta base de tempo
+	if(ISPRESSED() && touchx_atual > 121 && touchx_atual < 270 && touchy_atual > 100 && touchy_atual < 210){
+		base_tempo += 10;
+		TIM2 -> ARR = base_tempo;
+
+		//Limpa tela e pausa timer
+		htim2.Instance->CR1 &= ~TIM_CR1_CEN; // pause tim
+		fillRect(0, 0, 260, y_pos+5, GREEN);
+		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
+	}
+	//Diminui base de tempo
+	if(ISPRESSED() && touchx_atual > 20 && touchx_atual < 120 && touchy_atual > 100 && touchy_atual < 200){
+		(base_tempo -= 10) <= 10?base_tempo = 10:"";
+		TIM2 -> ARR = base_tempo;
+
+		//Limpa tela e pausa timer
+		htim2.Instance->CR1 &= ~TIM_CR1_CEN; // pause tim
+		fillRect(0, 0, 260, y_pos+5, GREEN);
+		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
+	}
+}
+
+void readTouchX() {
+	wr_analog_input(); //_yp
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+	rs_cmd(); //_ym LOW
+
+	flag_adc = 1;
+	HAL_ADC_Start_IT(&hadc1);
+}
+
+void readTouchY() {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+	rs_cmd();
+	rs_analog_input(); //_yp
+
+	wr_idle(); //_yp HIGH
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+
+	flag_adc = 1;
+	HAL_ADC_Start_IT(&hadc1);
+}
+
+void readTouchZ() {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
+	rs_cmd();
+	rs_analog_input();
+	wr_active();
+	wr_analog_input();
+
+	flag_adc = 1;
+	HAL_ADC_Start_IT(&hadc1);
+}
+
 void SystemClock_Config(void)
 {
 
@@ -358,11 +599,44 @@ static void MX_ADC1_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-    /**Configure Regular Channel 
+  /**Configure Regular Channel
     */
   sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
+/* TIM2 init function */
+static void MX_TIM2_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 35999;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = base_tempo;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
@@ -392,7 +666,6 @@ static void MX_DMA_Init(void)
         * EXTI
      PA1   ------> SharedAnalog_PA1
      PA2   ------> SharedAnalog_PA2
-     PB0   ------> SharedAnalog_PB0
 */
 static void MX_GPIO_Init(void)
 {
@@ -433,11 +706,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB10 PB11 PB4 PB5 
                            PB6 PB7 PB8 PB9 */
@@ -532,475 +800,6 @@ void fillScreen(uint16_t color) {
 	fillRect(0, 0, WIDTH, HEIGHT, color);
 }
 
-void drawChar(uint16_t WIDTH, uint16_t HEIGHT, int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t textbgcolor, uint8_t size) {
-	if((x >= WIDTH)            || // Clip right
-	   (y >= HEIGHT)           || // Clip bottom
-	   ((x + 6 * size - 1) < 0) || // Clip left
-	   ((y + 8 * size - 1) < 0))   // Clip top
-		return;
-
-	for(int8_t i=0; i<8; i++) {
-		for(int8_t j=0; j<5; j++) {
-			if(font[c][j][7-i] == 1) {
-				if (size == 1)
-					drawPixel(x+j, y+i, color);
-				else
-					fillRect(x+j*size, y+i*size, size, size, color);
-			}
-		}
-	}
-	/*switch(c) {
-	case '!':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_EX[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case ':':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_TWO[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '-':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_MINUS[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '0':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_0[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '1':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_1[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '2':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_2[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '3':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_3[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '4':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_4[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '5':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_5[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '6':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_6[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '7':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_7[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '8':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_8[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case '9':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_9[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'A':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_A[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'B':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_B[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'C':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_C[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'E':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_E[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'F':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_F[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'H':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_H[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'L':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_L[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'O':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_O[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'P':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_P[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'S':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_S[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'T':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_T[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'U':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_U[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-	case 'X':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_X[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'Y':
-		for(int8_t i=0; i<5; i++) {
-			for(int8_t j=0; j<8; j++) {
-				if(char_Y[j][i] == 1) {
-					if (size == 1)
-						drawPixel(x+i, y+j, color);
-					else
-						fillRect(x+i*size, y+j*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'a':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_a[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'b':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_b[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'c':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_c[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'e':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_e[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'f':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_f[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 'o':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_o[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-
-	case 't':
-		for(int8_t i=0; i<8; i++) {
-			for(int8_t j=0; j<5; j++) {
-				if(char_t[j][7-i] == 1) {
-					if (size == 1)
-						drawPixel(x+j, y+i, color);
-					else
-						fillRect(x+j*size, y+i*size, size, size, color);
-				}
-			}
-		}
-		break;
-	default:
-		for(int8_t i=0; i<5; i++) {
-				for(int8_t j=0; j<8; j++) {
-					fillRect(x+i*size, y+j*size, size, size, textbgcolor);
-				}
-			}
-		break;
-	}*/
-}
-
-
 void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
 	int16_t end;
 	if (w < 0) {
@@ -1047,15 +846,21 @@ void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
 void drawPixel(int16_t x, int16_t y, uint16_t color)
 {
     // MCUFRIEND just plots at edge if you try to write outside of the box:
-    if (x < 0 || y < 0 || x >= WIDTH || y >= HEIGHT)
-        return;
-    setAddrWindow(x, y, x, y);
+    if (rotation & 1) {
+    	if (x < 0 || y < 0 || x >= HEIGHT || y >= WIDTH)
+    	        return;
+    	setAddrWindow(y, x, y, x);
+    } else {
+    	if (x < 0 || y < 0 || x >= WIDTH || y >= HEIGHT)
+    	        return;
+    	setAddrWindow(x, y, x, y);
+    }
     writeCmdData(_MW, color);
 }
 
 void testDrawScreen() {
 	// Titulo
-	setCursor(16, 16);
+	/*setCursor(16, 16);
 	setTextColor(BLUE, GREEN);
 	setTextSize(4);
 	print("UfAbC TeStE!!");
@@ -1065,8 +870,8 @@ void testDrawScreen() {
 	setTextColor(BLUE, GREEN);
 	setTextSize(4);
 	print("BoTaO 1");
-	drawRect(10, 62, 185, 45, BLUE);
-	drawRect(11, 63, 183, 43, BLUE);
+	drawRect(61, 10, 45, 185, BLUE);
+	drawRect(62, 11, 43, 183, BLUE);*/
 
 	setCursor(16, 148);
 	setTextColor(BLUE, GREEN);
@@ -1080,21 +885,21 @@ void testDrawScreen() {
 
 	//vertScroll(0, 320, teste);
 
-	if (teste >= 320) {
+	/*if (teste >= 320) {
 		teste = 0;
 	} else {
 		teste += 1;
-	}
+	}*/
 
-	if (touchx_atual > 150 && touchx_atual < 500 && touchy_atual > 780 && touchy_atual < 1450) {
+	/*if (touchx_atual > 150 && touchx_atual < 500 && touchy_atual > 780 && touchy_atual < 1450) {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	}
+	}*/
 
 
-	fillRect(320-teste, 100, 4, 30, RED);
-	fillRect(320-teste+4, 100, 4, 30, GREEN);
+	/*fillRect(320-teste, 100, 4, 30, RED);
+	fillRect(320-teste+4, 100, 4, 30, GREEN);*/
 
 	/*if (eixo_y_plus < 20) {
 		fillRect(100+teste-2, 100+eixo_y_plus, 2, 2, RED);
@@ -1111,6 +916,495 @@ void testDrawScreen() {
 			eixo_y_minus = 20;
 		}
 	}*/
+}
+
+void calibrateTouch(){
+	char resultx[50];
+	char resulty[50];
+	int samples = 100;
+	int temp = 0;
+	int f_touch = 0;
+	int failcount = 0;
+	int count = 0;
+	bool OK = false;
+
+	int x1, x2, x3;
+	int y1, y2, y3;
+	int touchx1 = 0, touchx2 = 0, touchx3 = 0;
+	int touchy1 = 0, touchy2 = 0, touchy3 = 0;
+	int alphaX, betaX, deltaX;
+	int alphaY, betaY, deltaY;
+	int X, Y;
+
+	setTextColor(BLUE, GREEN);
+	setCursor(60, 120);
+	setTextSize(2);
+	print("Pressione na cruz!");
+
+	drawCross(20, 20, BLUE, GREEN);
+
+	while (!OK) {
+		while (!ISPRESSED()) {};
+		fillRect(60, 120, 220, 16, GREEN);
+		setCursor(60, 120);
+		print("Mantenha pressionado!");
+		count = 0;
+		do {
+			if (samples-count-1 < 10) fillRect(65, 140, 25, 16, GREEN);
+			setCursor(60, 140);
+			sprintf(resultx, "%i", samples-count-1);
+			print(resultx);
+			readTouch();
+			if (touchz_atual > 200) {
+				touchx1 += touchx_atual;
+				touchy1 += touchy_atual;
+				count++;
+			} else {
+				failcount++;
+			}
+		} while ((count < samples) && (failcount < 10000));
+
+		if(count >= samples) {
+			OK = true;
+		} else {
+			touchx1 = 0;
+			touchy1 = 0;
+			count = 0;
+		}
+		if (failcount >= 10000) {
+			fillRect(90, 120, 200, 16, GREEN);
+			setCursor(90, 120);
+			print("FAIL!");
+		}
+	};
+
+	touchx1 = touchx1/samples;
+	touchy1 = touchy1/samples;
+
+	fillRect(20, 20, 20, 20, GREEN); //Apaga a cruz
+	fillRect(60, 140, 25, 16, GREEN); //Apaga o timer
+	drawCross(100, 200, BLUE, GREEN); //Desenha nova cruz
+	fillRect(60, 120, 280, 16, GREEN); //Apaga texto
+	setCursor(60, 180);
+	print("Pressione na cruz!");
+	while (ISPRESSED()) {}; //Aguarda retirar o toque da cruz anterior
+	OK = false;
+
+	while (!OK) {
+		while (!ISPRESSED()) {};
+		fillRect(60, 180, 220, 16, GREEN);
+		setCursor(60, 180);
+		print("Mantenha pressionado!");
+		count = 0;
+		do {
+			if (samples-count-1 < 10) fillRect(65, 200, 25, 16, GREEN);
+			setCursor(60, 200);
+			sprintf(resultx, "%i", samples-count-1);
+			print(resultx);
+			readTouch();
+			if (touchz_atual > 200) {
+				touchx2 += touchx_atual;
+				touchy2 += touchy_atual;
+				count++;
+			} else {
+				failcount++;
+			}
+		} while ((count < samples) && (failcount < 10000));
+
+		if(count >= samples) {
+			OK = true;
+		} else {
+			touchx2 = 0;
+			touchy2 = 0;
+			count = 0;
+		}
+		if (failcount >= 10000) {
+			fillRect(90, 120, 200, 16, GREEN);
+			setCursor(90, 120);
+			print("FAIL!");
+		}
+	}
+
+	touchx2 = touchx2/samples;
+	touchy2 = touchy2/samples;
+
+	fillRect(200, 100, 20, 20, GREEN); //Apaga a cruz
+	fillRect(60, 200, 25, 16, GREEN); //Apaga o timer
+	drawCross(200, 20, BLUE, GREEN); //Desenha nova cruz
+	fillRect(60, 180, 280, 16, GREEN); //Apaga texto
+	setCursor(60, 100);
+	print("Pressione na cruz!");
+	while (ISPRESSED()) {}; //Aguarda retirar o toque da cruz anterior
+	OK = false;
+
+	while (!OK) {
+		while (!ISPRESSED()) {};
+		fillRect(60, 100, 220, 16, GREEN);
+		setCursor(60, 100);
+		print("Mantenha pressionado!");
+		count = 0;
+		do {
+			if (samples-count-1 < 10) fillRect(65, 120, 25, 16, GREEN);
+			setCursor(60, 120);
+			sprintf(resultx, "%i", samples-count-1);
+			print(resultx);
+			readTouch();
+			if (touchz_atual > 200) {
+				touchx3 += touchx_atual;
+				touchy3 += touchy_atual;
+				count++;
+			} else {
+				failcount++;
+			}
+		} while ((count < samples) && (failcount < 10000));
+
+		if(count >= samples) {
+			OK = true;
+		} else {
+			touchx3 = 0;
+			touchy3 = 0;
+			count = 0;
+		}
+		if (failcount >= 10000) {
+			fillRect(90, 100, 200, 16, GREEN);
+			setCursor(90, 100);
+			print("FAIL!");
+		}
+	}
+
+	touchx3 = touchx3/samples;
+	touchy3 = touchy3/samples;
+
+	int ident[3][3];
+
+	x1 = 20 + 15/2; // Ponto X1 + Largura do ponto
+	y1 = 20 + 15/2; // Ponto Y1 + Largura do ponto
+	x2 = 200 + 15/2; // Ponto X2 + Largura do ponto
+	y2 = 100 + 15/2; // Ponto Y2 + Largura do ponto
+	x3 = 200 + 15/2; // Ponto X3 + Largura do ponto
+	y3 = 20 + 15/2; // Ponto Y3 + Largura do ponto
+
+	int A[3][3] =
+	{
+		{touchx1,touchy1,1}  ,
+		{touchx2,touchy2,1}  ,
+		{touchx3,touchy3,1}
+	};
+
+	for(int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			if (i == j) {
+				ident[i][j] = 1;
+			}
+			else {
+				ident[i][j] = 0;
+			}
+		}
+	}
+
+	for (int j = 0; j < 3; j++) {
+		for (int k = 0; k < 3; k++) {
+			A[j][k] = A[j][k]/A[j][j];
+			ident[j][k] = ident[j][k]/A[j][j];
+		}
+
+		for (int i = 0; i < 3; i++) {
+			if (i != j) {
+				for (int k = 0; k < 3; k++) {
+					A[j][k] = A[i][k] - (A[i][j] * A[j][k]);
+					ident[i][k] = ident[i][k] - (A[i][j] * ident[j][k]);
+				}
+			}
+		}
+	}
+
+	fillScreen(GREEN);
+
+	sprintf(resultx, "%i", touchx1);
+
+	setCursor(10, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchy1);
+
+	setCursor(110, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchx2);
+
+	setCursor(10, 80);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resulty, "%i", touchy2);
+
+	setCursor(110, 80);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchx3);
+
+	setCursor(10, 120);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchy3);
+
+	setCursor(110, 120);
+	setTextSize(2);
+	print(resulty);
+
+	alphaX = (ident[0][0]*x1) + (ident[0][1]*x2) + (x3);
+	betaX = (ident[1][0]*x1) + (ident[1][1]*x2) + (x3);
+	deltaX = (ident[2][0]*x1) + (ident[2][1]*x2) + (x3);
+
+	alphaY = (ident[0][0]*y1) + (ident[0][1]*y2) + (y3);
+	betaY = (ident[1][0]*y1) + (ident[1][1]*y2) + (y3);
+	deltaY = (ident[2][0]*y1) + (ident[2][1]*y2) + (y3);
+
+	X = (alphaX * touchx1) + (betaX * touchy1) + deltaX;
+	Y = (alphaY * touchy1) + (betaY * touchy1) + deltaY;
+
+	sprintf(resulty, "%i", X);
+
+	setCursor(10, 160);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", Y);
+
+	setCursor(110, 160);
+	setTextSize(2);
+	print(resulty);
+
+	run = true;
+
+	/*int ident[3][3];
+
+	//fillRect(20, 20, 11, 11, RED);
+	drawCross(20, 20, BLUE, GREEN);
+
+	x1 = 20 + 11/2; // Ponto X1 + Largura do ponto
+	y1 = 20 + 11/2; // Ponto Y1 + Largura do ponto
+
+	while (f_touch == 0) {
+		for (int i = 0; i < samples; i++) {
+			readTouchX();
+			if (flag_adc == 0) {
+				temp += val_adc1;
+			} else {
+				i--;
+			}
+		}
+		touchx1 = temp/samples;
+		if (ISPRESSED()) f_touch = 1;
+	}
+
+	sprintf(resultx, "%i", touchx1);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchY();
+		if (flag_adc == 0) {
+			temp += val_adc2;
+		}
+	}
+	touchy1 = temp/samples;
+
+	sprintf(resulty, "%i", touchy1);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+
+	fillRect(240, 120, 11, 11, RED);
+
+	x2 = 240 + 11/2; // Ponto X2 + Largura do ponto
+	y2 = 120 + 11/2; // Ponto Y2 + Largura do ponto
+
+	f_touch = 0;
+	temp = 0;
+	val_adc2 = 0;
+	while (f_touch == 0) {
+		for (int i = 0; i < samples; i++) {
+			readTouchY();
+			if (flag_adc == 0) {
+				temp += val_adc2;
+			} else {
+				i--;
+			}
+		}
+		temp = temp/samples;
+		if (ISPRESSED()) f_touch = 1;
+	}
+
+	for (int i = 0; i < 20; i++) {
+		readTouchX();
+		if (flag_adc == 0) {
+			temp += val_adc1;
+		}
+	}
+	touchx2 = temp/samples;
+
+	sprintf(resultx, "%i", touchx2);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchY();
+		if (flag_adc == 0) {
+			temp += val_adc2;
+		}
+	}
+	touchy2 = temp/samples;
+
+	sprintf(resulty, "%i", touchy2);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+
+	fillRect(20, 200, 11, 11, RED);
+
+	x3 = 20 + 11/2; // Ponto X3 + Largura do ponto
+	y3 = 200 + 11/2; // Ponto Y3 + Largura do ponto
+
+	f_touch = 0;
+	temp = 0;
+	val_adc1 = 0;
+	while (f_touch == 0) {
+		for (int i = 0; i < samples; i++) {
+			readTouchX();
+			if (flag_adc == 0) {
+				temp += val_adc1;
+			} else {
+				i--;
+			}
+		}
+		temp = temp/samples;
+		if (ISPRESSED()) f_touch = 1;
+	}
+
+	for (int i = 0; i < samples; i++) {
+		readTouchX();
+		if (flag_adc == 0) {
+			temp += val_adc1;
+		}
+	}
+	touchx3 = temp/samples;
+
+	sprintf(resultx, "%i", touchx3);
+
+	fillRect(40, 148, 80, 18, GREEN);
+
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
+	temp = 0;
+	for (int i = 0; i < samples; i++) {
+		readTouchY();
+		if (flag_adc == 0) {
+			temp += val_adc2;
+		}
+	}
+	touchy3 = temp/samples;
+
+	sprintf(resulty, "%i", touchy3);
+
+	fillRect(154, 148, 80, 18, GREEN);
+
+	setCursor(154, 148);
+	setTextSize(2);
+	print(resulty);
+
+	int A[3][3] =
+	{
+		{touchx1,touchy1,1}  ,
+		{touchx2,touchy2,1}  ,
+		{touchx3,touchy3,1}
+	};
+
+	for(int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			if (i == j) {
+				ident[i][j] = 1;
+			}
+			else {
+				ident[i][j] = 0;
+			}
+		}
+	}
+
+	for (int j = 0; j < 3; j++) {
+		for (int k = 0; k < 3; k++) {
+			A[j][k] = A[j][k]/A[j][j];
+			ident[j][k] = ident[j][k]/A[j][j];
+		}
+
+		for (int i = 0; i < 3; i++) {
+			if (i != j) {
+				for (int k = 0; k < 3; k++) {
+					A[j][k] = A[i][k] - (A[i][j] * A[j][k]);
+					ident[i][k] = ident[i][k] - (A[i][j] * ident[j][k]);
+				}
+			}
+		}
+	}
+
+	sprintf(resultx, "%i", touchx1);
+
+	setCursor(30, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchy1);
+
+	setCursor(60, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", touchx2);
+
+	setCursor(90, 40);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resulty, "%i", touchy2);
+
+	setCursor(30, 80);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchx3);
+
+	setCursor(80, 80);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", touchy3);
+
+	setCursor(120, 80);
+	setTextSize(2);
+	print(resulty);
+	*/
 }
 
 void setRotation(uint8_t r) {
@@ -1220,12 +1514,41 @@ void vertScroll (int16_t top, int16_t scrollines, int16_t offset) {
 	writeCmdData(0x41, vsp);        //VL#
 }
 
-void writeCmdData(uint16_t cmd, uint16_t dat)
-{
+void writeCmdData(uint16_t cmd, uint16_t dat) {
     cs_active();
     writeCmd(cmd);
     writeData(dat);
     cs_idle();
+}
+
+void drawChar(uint16_t WIDTH, uint16_t HEIGHT, int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t textbgcolor, uint8_t size) {
+	for(int8_t i=0; i<8; i++) {
+		for(int8_t j=0; j<5; j++) {
+			if(font[c][j][7-i] == 1) {
+				if (size == 1)
+					drawPixel(x+j, y+i, color);
+				else
+					fillRect(x+j*size, y+i*size, size, size, color);
+			} else {
+				if (size == 1)
+					drawPixel(x+j, y+i, textbgcolor);
+				else
+					fillRect(x+j*size, y+i*size, size, size, textbgcolor);
+			}
+		}
+	}
+}
+
+void drawCross(int16_t x, int16_t y, uint16_t color, uint16_t textbgcolor) {
+	for(int8_t i=0; i<15; i++) {
+		for(int8_t j=0; j<15; j++) {
+			if(cross_icon[j][14-i] == 1) {
+				drawPixel(x+j, y+i, color);
+			} else {
+				drawPixel(x+j, y+i, textbgcolor);
+			}
+		}
+	}
 }
 
 void setAddrWindow(int16_t x, int16_t y, int16_t x1, int16_t y1) {
@@ -1308,72 +1631,6 @@ void write_8(uint8_t x) {
 	aux1 = ((x) & 0x03)<<8;
 	aux2 = (x) & 0xFC;
 	GPIOB->BSRR = ((aux2 | aux1)<<2) & 0x0FF0;
-}
-
-void readTouch(){
-	char resultx[50];
-	char resulty[50];
-	int samples = 20;
-	int temp = 0;
-
-	for (int i = 0; i < 20; i++) {
-		readTouchX();
-		if (flag_adc == 0) {
-			temp += val_adc1;
-		}
-	}
-	touchx_atual = temp/samples;
-
-	sprintf(resultx, "%i", touchx_atual);
-
-	fillRect(40, 148, 80, 18, GREEN);
-
-	setCursor(40, 148);
-	setTextSize(2);
-	print(resultx);
-
-	temp = 0;
-	for (int i = 0; i < samples; i++) {
-		readTouchY();
-		if (flag_adc == 0) {
-			temp += val_adc2;
-		}
-	}
-	touchy_atual = temp/samples;
-
-	sprintf(resulty, "%i", touchy_atual);
-
-	fillRect(154, 148, 80, 18, GREEN);
-
-	setCursor(154, 148);
-	setTextSize(2);
-	print(resulty);
-}
-
-void readTouchX() {
-	wr_analog_input(); //_yp
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-	rs_cmd(); //_ym LOW
-
-	flag_adc = 1;
-	HAL_ADC_Start_IT(&hadc1);
-	wr_output();
-
-
-}
-
-void readTouchY() {
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
-	rs_cmd();
-	rs_analog_input(); //_yp
-
-	wr_idle(); //_yp HIGH
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
-
-	flag_adc = 1;
-	HAL_ADC_Start_IT(&hadc1);
-	rs_output();
-
 }
 
 void writeCmd (uint16_t cmd) {
