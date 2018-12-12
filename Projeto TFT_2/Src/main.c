@@ -46,7 +46,7 @@
 #include "stdio.h"
 #include "stdbool.h"
 #include "font_ascII_256.h"
-/*#include "cross_icon.h"*/
+#include "cross_icon.h"
 #include <math.h>
 /* USER CODE END Includes */
 
