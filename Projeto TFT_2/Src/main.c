@@ -355,14 +355,6 @@ void drawWave(uint8_t x_pos, uint8_t y_pos, uint8_t altura) {
 	}
 }
 
-void readLDR(uint8_t altura) {
-		flag_adc = 1;
-		HAL_ADC_Start_IT(&hadc1);
-		while(!flag_adc);
-		ldr_atual = val_adc3;
-
-	milliVolt_ldr = (ldr_atual*3300/4095)/altura;
-}
 
 bool ISPRESSED(void)
 {
@@ -386,6 +378,15 @@ bool ISPRESSED(void)
     return oldstate;
 }
 
+void readLDR(uint8_t altura) {
+		flag_adc = 1;
+		HAL_ADC_Start_IT(&hadc1);
+		while(!flag_adc);
+		ldr_atual = val_adc3;
+
+	milliVolt_ldr = (ldr_atual*3300/4095)/altura;
+}
+
 void readTouch(){
 	char resultx[50];
 	char resulty[50];
@@ -395,7 +396,7 @@ void readTouch(){
 	readTouchX();
 	for (int i = 0; i < samples; i++) {
 		if (flag_adc == 0) {
-			temp += val_adc1;
+			if (val_adc1 < 1500) temp += val_adc1;
 			readTouchX();
 		} else {
 			i--;
@@ -434,7 +435,7 @@ void readTouch(){
 	print(resulty);
 
 	//Aumenta escala
-	if(ISPRESSED() && touchx_atual > 240 && touchx_atual < 500 && touchy_atual > 20 && touchy_atual < 120){
+	if(ISPRESSED() && touchx_atual > 200 && touchx_atual < 500 && touchy_atual > 20 && touchy_atual < 130){
 		(altura -= 5) <= 5?altura = 5:"";
 
 		//Limpa tela e pausa timer
@@ -443,7 +444,7 @@ void readTouch(){
 		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
 	}
 	//Diminui escala
-	if(ISPRESSED() && touchx_atual > 180 && touchx_atual < 360 && touchy_atual > 70 && touchy_atual < 180){
+	if(ISPRESSED() && touchx_atual > 180 && touchx_atual < 320 && touchy_atual > 70 && touchy_atual < 190){
 		altura += 5;
 
 		//Limpa tela e pausa timer
@@ -452,7 +453,7 @@ void readTouch(){
 		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
 	}
 	//Aumenta base de tempo
-	if(ISPRESSED() && touchx_atual > 121 && touchx_atual < 270 && touchy_atual > 100 && touchy_atual < 210){
+	if(ISPRESSED() && touchx_atual > 110 && touchx_atual < 200 && touchy_atual > 100 && touchy_atual < 210){
 		base_tempo += 10;
 		TIM2 -> ARR = base_tempo;
 
@@ -462,7 +463,7 @@ void readTouch(){
 		htim2.Instance->CR1 |= TIM_CR1_CEN;  // resume tim
 	}
 	//Diminui base de tempo
-	if(ISPRESSED() && touchx_atual > 20 && touchx_atual < 120 && touchy_atual > 100 && touchy_atual < 200){
+	if(ISPRESSED() && touchx_atual > 40 && touchx_atual < 100 && touchy_atual > 100 && touchy_atual < 220){
 		(base_tempo -= 10) <= 10?base_tempo = 10:"";
 		TIM2 -> ARR = base_tempo;
 
