@@ -258,9 +258,9 @@ int main(void)
 
   /* USER CODE BEGIN 3 */
 	  //fillScreen(GREEN);
-	  if(!run) calibrateTouch();
-	  //testDrawScreen();
-	  //readTouch();
+	  //if(!run) calibrateTouch();
+	  testDrawScreen();
+	  readTouch();
 	  //drawPixel(40, 10, RED);
 	  //drawPixel(80, 20, RED);
 	  //drawPixel(209, 299, RED);
@@ -630,18 +630,18 @@ void testDrawScreen() {
 	setTextSize(2);
 	print("Y:");
 
-	setCursor(200, 148);
+	/*setCursor(200, 148);
 	setTextColor(BLUE, GREEN);
 	setTextSize(2);
-	print("Z:");
+	print("Z:");*/
 
 	//vertScroll(0, 320, teste);
 
-	if (teste >= 320) {
+	/*if (teste >= 320) {
 		teste = 0;
 	} else {
 		teste += 1;
-	}
+	}*/
 
 	/*if (touchx_atual > 150 && touchx_atual < 500 && touchy_atual > 780 && touchy_atual < 1450) {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
@@ -650,8 +650,8 @@ void testDrawScreen() {
 	}*/
 
 
-	fillRect(320-teste, 100, 4, 30, RED);
-	fillRect(320-teste+4, 100, 4, 30, GREEN);
+	//fillRect(320-teste, 100, 4, 30, RED);
+	//fillRect(320-teste+4, 100, 4, 30, GREEN);
 
 	/*if (eixo_y_plus < 20) {
 		fillRect(100+teste-2, 100+eixo_y_plus, 2, 2, RED);
@@ -671,8 +671,8 @@ void testDrawScreen() {
 }
 
 void calibrateTouch(){
-	char resultx[50];
-	char resulty[50];
+	char resultx[20];
+	char resulty[20];
 	int samples = 100;
 	int temp = 0;
 	int f_touch = 0;
@@ -836,6 +836,13 @@ void calibrateTouch(){
 	x3 = 200 + 15/2; // Ponto X3 + Largura do ponto
 	y3 = 20 + 15/2; // Ponto Y3 + Largura do ponto
 
+	/*touchx1 = 678;
+	touchy1 = 2169;
+	touchx2 = 2807;
+	touchy2 = 1327;
+	touchx3 = 2629;
+	touchy3 = 3367;*/
+
 	int A[3][3] =
 	{
 		{touchx1,touchy1,1}  ,
@@ -854,7 +861,7 @@ void calibrateTouch(){
 		}
 	}
 
-	for (int j = 0; j < 3; j++) {
+	/*for (int j = 0; j < 3; j++) {
 		for (int k = 0; k < 3; k++) {
 			A[j][k] = A[j][k]/A[j][j];
 			ident[j][k] = ident[j][k]/A[j][j];
@@ -868,45 +875,88 @@ void calibrateTouch(){
 				}
 			}
 		}
-	}
+	}*/
+
 
 	fillScreen(GREEN);
 
 	sprintf(resultx, "%i", touchx1);
 
-	setCursor(10, 40);
+	setCursor(10, 10);
 	setTextSize(2);
 	print(resultx);
 
 	sprintf(resultx, "%i", touchy1);
 
-	setCursor(110, 40);
+	setCursor(110, 10);
 	setTextSize(2);
 	print(resultx);
 
 	sprintf(resultx, "%i", touchx2);
 
-	setCursor(10, 80);
+	setCursor(10, 50);
 	setTextSize(2);
 	print(resultx);
 
 	sprintf(resulty, "%i", touchy2);
 
-	setCursor(110, 80);
+	setCursor(110, 50);
 	setTextSize(2);
 	print(resulty);
 
 	sprintf(resulty, "%i", touchx3);
 
-	setCursor(10, 120);
+	setCursor(10, 90);
 	setTextSize(2);
 	print(resulty);
 
 	sprintf(resulty, "%i", touchy3);
 
-	setCursor(110, 120);
+	setCursor(110, 90);
 	setTextSize(2);
 	print(resulty);
+
+
+
+
+
+	/*sprintf(resultx, "%i", ident[0][0]);
+
+	setCursor(10, 30);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", ident[0][1]);
+
+	setCursor(110, 30);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resultx, "%i", ident[1][0]);
+
+	setCursor(10, 70);
+	setTextSize(2);
+	print(resultx);
+
+	sprintf(resulty, "%i", ident[1][1]);
+
+	setCursor(110, 70);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", ident[2][0]);
+
+	setCursor(10, 120);
+	setTextSize(2);
+	print(resulty);
+
+	sprintf(resulty, "%i", ident[2][1]);
+
+	setCursor(110, 120);
+	setTextSize(2);
+	print(resulty);*/
+
+
 
 	alphaX = (ident[0][0]*x1) + (ident[0][1]*x2) + (x3);
 	betaX = (ident[1][0]*x1) + (ident[1][1]*x2) + (x3);
@@ -1388,9 +1438,9 @@ void write_8(uint8_t x) {
 void readTouch(){
 	char resultx[50];
 	char resulty[50];
-	int samples = 100;
+	int samples = 20;
 	int temp = 0;
-	int temp1 = 0;
+	int x1 = 0, y1 = 0;
 
 	readTouchX();
 	for (int i = 0; i < samples; i++) {
@@ -1402,14 +1452,16 @@ void readTouch(){
 		}
 	}
 	touchx_atual = temp/samples;
+	//
 
-	//sprintf(resultx, "%i", touchx_atual);
+	sprintf(resultx, "%i", touchx_atual);
 
-	//fillRect(40, 148, 80, 18, GREEN);
+	fillRect(40, 148, 80, 18, GREEN);
 
-	//setCursor(40, 148);
-	//setTextSize(2);
-	//print(resultx);
+	setCursor(40, 148);
+	setTextSize(2);
+	print(resultx);
+
 	flag_adc = 1;
 	temp = 0;
 	readTouchY();
@@ -1423,13 +1475,12 @@ void readTouch(){
 	}
 	touchy_atual = temp/samples;
 
-	//sprintf(resulty, "%i", touchy_atual);
+	sprintf(resulty, "%i", touchy_atual);
 
-	//fillRect(154, 148, 80, 18, GREEN);
+	fillRect(154, 148, 80, 18, GREEN);
 
-	//setCursor(154, 148);
-	//setTextSize(2);
-	//print(resulty);
+	setCursor(154, 148);
+	print(resulty);
 
 	/*temp = 0;
 	readTouchZ();
@@ -1453,13 +1504,13 @@ void readTouch(){
 
 	setCursor(210, 148);
 	setTextSize(2);
-	print(resultx);
+	print(resultx);*/
 
-	if (ISPRESSED()) {
+	if (ISPRESSED() && touchx_atual < 1521 && touchx_atual > 824 && touchy_atual < 610 && touchy_atual > 150) {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	}*/
+	}
 }
 
 void readTouchX() {
