@@ -68,7 +68,7 @@ static void MX_ADC1_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-void testDrawScreen();
+void exampleScreen();
 
 /* USER CODE END PFP */
 
@@ -117,12 +117,16 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  startLCD();
+  startLCD();	// Start LCD Hardware
+  /*
+   * Start ADC with DMA
+   * 	Parameters:
+   * 	ADC_HandleTypeDef hadc1;
+   * 	uint32_t ADC_BUF[2];
+   * 	uint32_t Length (number of used channels)
+   */
   HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_BUF,2);
   flag_adc = 1;
-  touchx_atual = 0;
-  touchy_atual = 0;
-  touchz_atual = 0;
   setRotation(3);
 
   /* USER CODE END 2 */
@@ -135,9 +139,8 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-	  testDrawScreen();
-	  readTouch();
-	  //fillScreen(WHITE);
+	  exampleScreen();	// Draw simple example screen
+	  readTouch();	// Read touch
   }
   /* USER CODE END 3 */
 
@@ -318,10 +321,12 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void testDrawScreen() {
-	// Titulo
+
+void exampleScreen() {
+	// Title
 	print(16,16,BLUE,BLACK,5,"UFABC");
 
+	// Text
 	print(16,55,BLUE,BLACK,4,"Hello World!");
 
 	// Button
@@ -337,7 +342,6 @@ void testDrawScreen() {
 	print(16,188,BLUE,BLACK,2,"W:");
 	sprintf(temp, "%i", WIDTH);
 	print(40,188,BLUE,BLACK,2,temp);
-
 
 	print(130,188,BLUE,BLACK,2,"H:");
 	sprintf(temp, "%i", HEIGHT);
