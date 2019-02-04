@@ -1,5 +1,5 @@
-touch.c:86:6:readTouchX	8	static
-touch.c:95:6:readTouchY	8	static
-touch.c:107:6:readTouchZ	8	static
-touch.c:14:6:ISPRESSED	32	static
-touch.c:36:6:readTouch	48	static
+touch.c:101:6:readTouchX	8	static
+touch.c:113:6:readTouchY	8	static
+touch.c:125:6:readTouchZ	8	static
+touch.c:21:6:ISPRESSED	32	static
+touch.c:42:6:readTouch	48	static
